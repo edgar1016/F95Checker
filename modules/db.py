@@ -14,6 +14,7 @@ import re
 
 from modules.structs import (
     TimelineEventType,
+    Operating_System,
     TimelineEvent,
     SearchResult,
     DefaultStyle,
@@ -268,6 +269,7 @@ async def connect():
             "notes":                       f'TEXT    DEFAULT ""',
             "image_url":                   f'TEXT    DEFAULT ""',
             "downloads":                   f'TEXT    DEFAULT "[]"',
+            "operating_system":            f'TEXT    DEFAULT "[]"',
         },
         renames=[
             ("executable", "executables"),

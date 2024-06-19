@@ -473,17 +473,18 @@ MsgBox = IntEnumHack("MsgBox", [
 FilterMode = IntEnumHack("FilterMode", [
     ("Choose",    1),
     ("Archived",  2),
-    ("Custom",    13),
+    ("Custom",    14),
     ("Exe State", 3),
     ("Finished",  6),
     ("Installed", 4),
-    ("Label",     5),
-    ("Rating",    7),
-    ("Score",     8),
-    ("Status",    9),
-    ("Tag",       10),
-    ("Type",      11),
-    ("Updated",   12),
+    ("Label",     6),
+    ("OS",        5),
+    ("Rating",    8),
+    ("Score",     9),
+    ("Status",    10),
+    ("Tag",       11),
+    ("Type",      12),
+    ("Updated",   13),
 ])
 
 
@@ -799,6 +800,14 @@ Type = IntEnumHack("Type", [
 ])
 
 
+Operating_System = IntEnumHack("OS", [
+    ("Android",    (1,  {"color": colors.hex_to_rgba_0_1("#3DDC84")})),
+    ("Linux",      (2,  {"color": colors.hex_to_rgba_0_1("#FBBC05")})),
+    ("Mac",        (3,  {"color": colors.hex_to_rgba_0_1("#A2AAAD")})),
+    ("Windows",    (4,  {"color": colors.hex_to_rgba_0_1("#34A853")})),
+])
+
+
 @dataclasses.dataclass(slots=True)
 class Game:
     id                 : int
@@ -832,6 +841,7 @@ class Game:
     notes              : str
     image_url          : str
     downloads          : tuple[tuple[str, list[tuple[str, str]]]]
+    operating_system   : list[str]
     selected           : bool = False
     image              : imagehelper.ImageHelper = None
     executables_valids : list[bool] = None
@@ -853,6 +863,8 @@ class Game:
             self.finished = (self.installed or self.version)
         elif self.finished == "False" and self.installed != "False" and self.version != "False":
             self.finished = ""
+        if len(self.operating_system) == 0:
+            self.operating_system.append(Operating_System.Windows)
         from modules import globals
         self.image = imagehelper.ImageHelper(globals.images_path, glob=f"{self.id}.*")
         self.validate_executables()
@@ -994,7 +1006,8 @@ class Game:
             "tab",
             "notes",
             "image_url",
-            "downloads"
+            "downloads",
+            "operating_system"
         ]:
             if isinstance(attr := getattr(self, name), Timestamp):
                 attr.update(value)
