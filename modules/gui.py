@@ -244,12 +244,6 @@ class Columns:
             resizable=False,
             short_header=True,
         )
-        self.operatin_system = self.Column(
-            self, f"{icons.book_information_variant} OS",
-            default=True,
-            sortable=True,
-            resizable=False,
-        )
 
 cols = Columns()
 
