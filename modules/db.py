@@ -14,7 +14,6 @@ import re
 
 from modules.structs import (
     TimelineEventType,
-    Operating_System,
     TimelineEvent,
     SearchResult,
     DefaultStyle,
