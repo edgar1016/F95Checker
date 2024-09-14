@@ -550,7 +550,7 @@ class MainGUI():
         def pop_no_interaction():
             imgui.internal.pop_item_flag()
         imgui.pop_no_interaction = pop_no_interaction
-        def push_alpha(amount: float = 0.5):
+        def push_alpha(amount: float):
             imgui.push_style_var(imgui.STYLE_ALPHA, imgui.style.alpha * amount)
         imgui.push_alpha = push_alpha
         def pop_alpha():
@@ -558,7 +558,7 @@ class MainGUI():
         imgui.pop_alpha = pop_alpha
         def push_disabled():
             imgui.push_no_interaction()
-            imgui.push_alpha()
+            imgui.push_alpha(0.5)
         imgui.push_disabled = push_disabled
         def pop_disabled():
             imgui.pop_alpha()
@@ -679,6 +679,7 @@ class MainGUI():
         msgbox_range = imgui.core.GlyphRanges(msgbox_range_values)
         size_14 = round(self.scaled(14 * font_scaling_factor))
         size_15 = round(self.scaled(15 * font_scaling_factor))
+        size_17 = round(self.scaled(17 * font_scaling_factor))
         size_18 = round(self.scaled(18 * font_scaling_factor))
         size_22 = round(self.scaled(22 * font_scaling_factor))
         size_28 = round(self.scaled(28 * font_scaling_factor))
@@ -703,8 +704,10 @@ class MainGUI():
         fonts.small   = add_font(karlar_path, size_14, font_config=karla_config, glyph_ranges=karla_range)
         add_font(                noto_path,   size_14, font_config=noto_config,  glyph_ranges=noto_range)
         add_font(                mdi_path,    size_14, font_config=mdi_config,   glyph_ranges=mdi_range)
-        # Monospace font for more info dropdowns
-        fonts.mono    = add_font(meslo_path,  size_15, font_config=meslo_config, glyph_ranges=meslo_range)
+        # Monospace font for some dates
+        fonts.mono    = add_font(meslo_path,  size_17, font_config=meslo_config, glyph_ranges=meslo_range)
+        # Small monospace font for more info dropdowns
+        fonts.mono_sm = add_font(meslo_path,  size_15, font_config=meslo_config, glyph_ranges=meslo_range)
         # MsgBox type icons/thumbnails
         fonts.msgbox  = add_font(mdi_path,    size_69,                           glyph_ranges=msgbox_range)
         try:
@@ -1528,6 +1531,7 @@ class MainGUI():
         if game and not game.executables:
             imgui.pop_disabled()
         if clicked:
+            imgui.close_current_popup()
             if game:
                 game.clear_executables()
             else:
@@ -1537,7 +1541,7 @@ class MainGUI():
 
     def draw_game_open_folder_button(self, game: Game, label="", selectable=False, executable: str = None):
         if game and not game.executables:
-            imgui.push_alpha()
+            imgui.push_alpha(0.5)
         if selectable:
             clicked = imgui.selectable(label, False)[0]
         else:
@@ -1662,6 +1666,7 @@ class MainGUI():
             self.recalculate_ids = True
             imgui.close_current_popup()
         if new_tab is not current_tab:
+            imgui.close_current_popup()
             if game:
                 game.tab = new_tab
             else:
@@ -1814,7 +1819,6 @@ class MainGUI():
         imgui.dummy(0, 0 if globals.settings.compact_timeline else self.scaled(6))
 
         def draw_event(timestamp, type, args, spacing=True):
-            short_format = "%b %d, %Y"
             icon = getattr(icons, type.icon)
             date = dt.datetime.fromtimestamp(timestamp)
             message = type.template.format(*args, *["?" for _ in range(type.args_min - len(args))])
@@ -1822,12 +1826,9 @@ class MainGUI():
             if globals.settings.compact_timeline:
                 imgui.push_style_color(imgui.COLOR_TEXT, *globals.settings.style_text_dim)
                 imgui.push_font(imgui.fonts.mono)
-                imgui.text(date.strftime(short_format))
-                imgui.pop_style_color()
+                imgui.text(date.strftime(globals.settings.timestamp_format))
                 imgui.pop_font()
-                if imgui.is_item_hovered():
-                    with imgui.begin_tooltip():
-                        imgui.text(date.strftime(globals.settings.timestamp_format))
+                imgui.pop_style_color()
                 imgui.same_line()
                 imgui.push_style_color(imgui.COLOR_TEXT, *globals.settings.style_accent)
                 imgui.text(icon)
@@ -1848,7 +1849,7 @@ class MainGUI():
             imgui.same_line(spacing=self.scaled(15))
             timestamp_pos = imgui.get_cursor_screen_pos()
             imgui.push_style_color(imgui.COLOR_TEXT, *globals.settings.style_text_dim)
-            imgui.text(date.strftime(short_format))
+            imgui.text(date.strftime(globals.settings.datestamp_format))
             imgui.pop_style_color()
             timestamp_size = imgui.get_item_rect_size()
             if imgui.is_item_hovered():
@@ -1996,6 +1997,17 @@ class MainGUI():
             popup_uuid=popup_uuid
         )
 
+    def draw_game_image_missing_text(self, game: Game, text: str):
+        self.draw_hover_text(
+            text=text,
+            hover_text=(
+                "This image link blocks us! You can blame Imgur." if game.image_url == "blocked" else
+                "This thread does not seem to have an image!" if game.image_url == "missing" else
+                "This image link cannot be reached anymore!" if game.image_url == "dead" else
+                "Run a full refresh to try downloading it again!"
+            )
+        )
+
     def draw_game_info_popup(self, game: Game, carousel_ids: list = None, popup_uuid: str = ""):
         popup_pos = None
         popup_size = None
@@ -2010,10 +2022,7 @@ class MainGUI():
                 text = "Image missing!"
                 width = imgui.calc_text_size(text).x
                 imgui.set_cursor_pos_x((avail.x - width + imgui.style.scrollbar_size) / 2)
-                self.draw_hover_text(
-                    text=text,
-                    hover_text="This thread does not seem to have an image!" if game.image_url == "missing" else "Run a full refresh to try downloading it again!"
-                )
+                self.draw_game_image_missing_text(game, text)
             elif image.invalid:
                 text = "Invalid image!"
                 width = imgui.calc_text_size(text).x
@@ -2123,6 +2132,7 @@ class MainGUI():
             imgui.same_line()
             self.draw_game_remove_button(game, f"{icons.trash_can_outline} Remove")
 
+            imgui.spacing()
             imgui.text_disabled("Version:")
             imgui.same_line()
             if game.updated:
@@ -2134,48 +2144,70 @@ class MainGUI():
             offset = imgui.calc_text_size("Version:").x + imgui.style.item_spacing.x
             utils.wrap_text(game.version, width=offset + imgui.get_content_region_available_width(), offset=offset)
 
-            imgui.text_disabled("Developer:")
-            imgui.same_line()
-            offset = imgui.calc_text_size("Developer:").x + imgui.style.item_spacing.x
-            utils.wrap_text(game.developer or "Unknown", width=offset + imgui.get_content_region_available_width(), offset=offset)
+            if imgui.begin_table(f"###details", column=2):
+                imgui.table_setup_column("", imgui.TABLE_COLUMN_WIDTH_STRETCH)
+                imgui.table_setup_column("", imgui.TABLE_COLUMN_WIDTH_STRETCH)
 
-            imgui.text_disabled("Personal Rating:")
-            imgui.same_line()
-            self.draw_game_rating_widget(game)
+                imgui.table_next_row()
 
-            imgui.text_disabled("Status:")
-            imgui.same_line()
-            imgui.text(game.status.name)
-            imgui.same_line()
-            self.draw_status_widget(game.status)
+                imgui.table_next_column()
+                imgui.text_disabled("Developer:")
+                imgui.same_line()
+                offset = imgui.calc_text_size("Developer:").x + imgui.style.item_spacing.x
+                utils.wrap_text(game.developer or "Unknown", width=offset + imgui.get_content_region_available_width(), offset=offset)
 
-            imgui.text_disabled("Forum Score:")
-            imgui.same_line()
-            imgui.text(f"{game.score:.1f}/5")
-            imgui.same_line()
-            imgui.text_disabled(f"({game.votes})")
+                imgui.table_next_column()
+                imgui.text_disabled("Added On:")
+                imgui.same_line()
+                imgui.text(game.added_on.display)
 
-            imgui.text_disabled("Type:")
-            imgui.same_line()
-            self.draw_type_widget(game.type)
+                imgui.table_next_row()
 
-            imgui.text_disabled("Last Updated:")
-            imgui.same_line()
-            imgui.text(game.last_updated.display or "Unknown")
+                imgui.table_next_column()
+                imgui.text_disabled("Status:")
+                imgui.same_line()
+                imgui.text(game.status.name)
+                imgui.same_line()
+                self.draw_status_widget(game.status)
 
-            imgui.text_disabled("Last Played:")
-            imgui.same_line()
-            imgui.text(game.last_played.display or "Never")
-            if imgui.is_item_clicked():
-                game.last_played = time.time()
-            if imgui.is_item_hovered():
-                imgui.begin_tooltip()
-                imgui.text("Click to set as played right now!")
-                imgui.end_tooltip()
+                imgui.table_next_column()
+                imgui.text_disabled("Last Updated:")
+                imgui.same_line()
+                imgui.text(game.last_updated.display or "Unknown")
 
-            imgui.text_disabled("Added On:")
-            imgui.same_line()
-            imgui.text(game.added_on.display)
+                imgui.table_next_row()
+
+                imgui.table_next_column()
+                imgui.text_disabled("Type:")
+                imgui.same_line()
+                self.draw_type_widget(game.type)
+
+                imgui.table_next_column()
+                imgui.text_disabled("Last Played:")
+                imgui.same_line()
+                imgui.text(game.last_played.display or "Never")
+                if imgui.is_item_clicked():
+                    game.last_played = time.time()
+                if imgui.is_item_hovered():
+                    imgui.begin_tooltip()
+                    imgui.text("Click to set as played right now!")
+                    imgui.end_tooltip()
+
+                imgui.table_next_row()
+
+                imgui.table_next_column()
+                imgui.text_disabled("Forum Score:")
+                imgui.same_line()
+                imgui.text(f"{game.score:.1f}/5")
+                imgui.same_line()
+                imgui.text_disabled(f"({game.votes})")
+
+                imgui.table_next_column()
+                imgui.text_disabled("Personal Rating:")
+                imgui.same_line()
+                self.draw_game_rating_widget(game)
+
+                imgui.end_table()
 
             imgui.text_disabled("OS:")
             imgui.same_line()
@@ -2203,6 +2235,7 @@ class MainGUI():
                     imgui.same_line()
                     imgui.text(executable)
 
+            imgui.align_text_to_frame_padding()
             imgui.text_disabled("Manage Exes:")
             imgui.same_line()
             self.draw_game_add_exe_button(game, f"{icons.folder_edit_outline} Add Exe")
@@ -3217,11 +3250,17 @@ class MainGUI():
                         case cols.developer.index:
                             imgui.text(game.developer or "Unknown")
                         case cols.last_updated.index:
+                            imgui.push_font(imgui.fonts.mono)
                             imgui.text(game.last_updated.display or "Unknown")
+                            imgui.pop_font()
                         case cols.last_played.index:
+                            imgui.push_font(imgui.fonts.mono)
                             imgui.text(game.last_played.display or "Never")
+                            imgui.pop_font()
                         case cols.added_on.index:
+                            imgui.push_font(imgui.fonts.mono)
                             imgui.text(game.added_on.display)
+                            imgui.pop_font()
                         case cols.finished.index:
                             self.draw_game_finished_checkbox(game)
                         case cols.installed.index:
@@ -3357,10 +3396,7 @@ class MainGUI():
             showed_img = imgui.is_rect_visible(cell_width, img_height)
             if text_size.x < cell_width:
                 imgui.set_cursor_pos((pos.x + (cell_width - text_size.x) / 2, pos.y + img_height / 2))
-                self.draw_hover_text(
-                    text=text,
-                    hover_text="This thread does not seem to have an image!" if game.image_url == "missing" else "Run a full refresh to try downloading it again!"
-                )
+                self.draw_game_image_missing_text(game, text)
                 imgui.set_cursor_pos(pos)
             imgui.dummy(cell_width, img_height)
         elif game.image.invalid:
@@ -4185,7 +4221,18 @@ class MainGUI():
                     rpc_thread.stop()
 
             draw_settings_label("Install extension:")
-            if set.browser.integrated or not set.rpc_enabled:
+            cant_install_extension = set.browser.integrated or not set.rpc_enabled
+            def cant_install_extension_tooltip():
+                if imgui.is_item_hovered():
+                    imgui.begin_tooltip()
+                    imgui.push_text_wrap_pos(min(imgui.get_font_size() * 35, imgui.io.display_size.x))
+                    if set.browser.integrated:
+                        imgui.text("You have selected the Integrated browser, this already includes the extension!")
+                    elif not set.rpc_enabled:
+                        imgui.text("RPC must be enabled for the browser extension to work!")
+                    imgui.pop_text_wrap_pos()
+                    imgui.end_tooltip()
+            if cant_install_extension:
                 imgui.push_disabled()
             if imgui.button(icons.google_chrome, width=(right_width - imgui.style.item_spacing.x) / 2):
                 buttons={
@@ -4204,11 +4251,19 @@ class MainGUI():
                     MsgBox.info,
                     buttons
                 )
+            if cant_install_extension:
+                imgui.pop_disabled()
+                cant_install_extension_tooltip()
+                imgui.push_disabled()
             imgui.same_line()
             if imgui.button(icons.firefox, width=(right_width - imgui.style.item_spacing.x) / 2):
-                callbacks.open_webpage("https://addons.mozilla.org/firefox/addon/f95checker-browser-addon/")
-            if set.browser.integrated or not set.rpc_enabled:
+                if globals.release:
+                    callbacks.open_webpage("https://addons.mozilla.org/firefox/addon/f95checker-browser-addon/")
+                else:
+                    callbacks.open_webpage("https://addons.mozilla.org/firefox/addon/f95checker-beta-browser-addon/")
+            if cant_install_extension:
                 imgui.pop_disabled()
+                cant_install_extension_tooltip()
 
             draw_settings_label(
                 "Icon glow:",
@@ -4379,7 +4434,7 @@ class MainGUI():
 
             draw_settings_label(
                 "Date format:",
-                "The format expression to use for short datestamps. Uses the strftime specification. Default is '%d/%m/%Y'."
+                "The format expression to use for short datestamps. Uses the strftime specification. Default is '%b %d, %Y'."
             )
             changed, value = imgui.input_text("###datestamp_format", set.datestamp_format)
             def setter_extra(_=None):
